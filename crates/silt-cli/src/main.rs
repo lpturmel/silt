@@ -74,6 +74,25 @@ enum Commands {
         #[arg(long, default_value_t = 20)]
         limit: usize,
     },
+    /// Manage the opt-in background LaunchAgent collector (siltd)
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum DaemonAction {
+    /// Install and start ~/Library/LaunchAgents/com.silt.daemon.plist
+    Install {
+        /// Optional explicit path to the `siltd` binary
+        #[arg(long)]
+        binary: Option<PathBuf>,
+    },
+    /// Stop and remove the LaunchAgent plist
+    Uninstall,
+    /// Show LaunchAgent installation status
+    Status,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -137,6 +156,7 @@ fn main() -> Result<()> {
         Commands::CleanupPreview { volume, limit } => {
             cmd_cleanup_preview(&db, &volume, limit, cli.json)
         }
+        Commands::Daemon { action } => cmd_daemon(action),
     }
 }
 
@@ -451,6 +471,90 @@ fn cmd_cleanup_preview(db: &Database, volume: &str, limit: usize, json: bool) ->
         );
     }
     Ok(())
+}
+
+fn cmd_daemon(action: DaemonAction) -> Result<()> {
+    let home = std::env::var("HOME").context("HOME not set")?;
+    let plist_path = PathBuf::from(&home)
+        .join("Library/LaunchAgents")
+        .join("com.silt.daemon.plist");
+
+    match action {
+        DaemonAction::Status => {
+            if plist_path.exists() {
+                println!("siltd LaunchAgent: Installed ({})", plist_path.display());
+            } else {
+                println!("siltd LaunchAgent: Not installed (run `silt-cli daemon install` or enable in Silt Settings)");
+            }
+            Ok(())
+        }
+        DaemonAction::Install { binary } => {
+            let bin_path = binary.unwrap_or_else(|| {
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|e| e.parent().map(|d| d.join("siltd")))
+                    .filter(|p| p.exists())
+                    .unwrap_or_else(|| PathBuf::from("/Applications/Silt.app/Contents/MacOS/siltd"))
+            });
+            if let Some(parent) = plist_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let log_dir = silt_core::default_data_dir();
+            std::fs::create_dir_all(&log_dir)?;
+            let xml = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.silt.daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>StandardOutPath</key>
+    <string>{}/siltd.log</string>
+    <key>StandardErrorPath</key>
+    <string>{}/siltd.err.log</string>
+</dict>
+</plist>
+"#,
+                bin_path.display(),
+                log_dir.display(),
+                log_dir.display()
+            );
+            std::fs::write(&plist_path, xml)?;
+            let _ = std::process::Command::new("launchctl")
+                .args(["load", "-w", &plist_path.to_string_lossy()])
+                .output();
+            println!(
+                "Installed and loaded siltd LaunchAgent at {} (binary: {})",
+                plist_path.display(),
+                bin_path.display()
+            );
+            Ok(())
+        }
+        DaemonAction::Uninstall => {
+            if plist_path.exists() {
+                let _ = std::process::Command::new("launchctl")
+                    .args(["unload", "-w", &plist_path.to_string_lossy()])
+                    .output();
+                std::fs::remove_file(&plist_path)?;
+                println!("Unloaded and removed {}", plist_path.display());
+            } else {
+                println!("siltd LaunchAgent is not installed.");
+            }
+            Ok(())
+        }
+    }
 }
 
 fn truncate(s: &str, max: usize) -> String {
