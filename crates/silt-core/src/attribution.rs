@@ -245,6 +245,59 @@ impl AttributionEngine {
         &self.home_dir
     }
 
+    /// Classify a file or directory path into an attributed App / Category / SafetyTier,
+    /// optionally scoped to a non-root volume mount point (e.g., an external SSD mounted
+    /// at `/Volumes/SSD` or `/Users/<user>/dev2`) so top-level folders on that drive are
+    /// broken down cleanly instead of being collapsed under `$HOME`.
+    pub fn classify_path_on_volume(
+        &self,
+        path: &Path,
+        is_dir: bool,
+        volume_mount: Option<&Path>,
+    ) -> PathAttribution {
+        // If scanning a dedicated non-root volume, still apply Dev rules (Cargo target, node_modules, etc.)
+        // and custom rules, then fall back to top-level folders relative to `volume_mount`.
+        if let Some(mount) = volume_mount
+            && mount != Path::new("/")
+            && path.starts_with(mount)
+        {
+            let path_str = path.to_string_lossy();
+            for rule in &self.custom_rules {
+                if path_str.contains(&rule.path_contains) {
+                    return PathAttribution {
+                        app_id: rule.app_id.clone(),
+                        display_name: rule.display_name.clone(),
+                        category: rule.category.clone(),
+                        bucket: BucketKind::DevArtifact,
+                        safety_tier: rule.safety_tier,
+                        is_orphaned: false,
+                        cleanup_root: Some(path.to_path_buf()),
+                        reason: Some(format!("Matched custom rule ({})", rule.path_contains)),
+                    };
+                }
+            }
+            if let Some(dev_attr) = self.classify_developer_path(path, is_dir) {
+                return dev_attr;
+            }
+            if let Ok(rel) = path.strip_prefix(mount)
+                && let Some(first) = rel.components().next()
+            {
+                let top = first.as_os_str().to_string_lossy().to_string();
+                return PathAttribution {
+                    app_id: format!("ext-folder:{}", slug(&top)),
+                    display_name: top,
+                    category: "User Files".to_string(),
+                    bucket: BucketKind::Other,
+                    safety_tier: SafetyTier::ReviewRequired,
+                    is_orphaned: false,
+                    cleanup_root: None,
+                    reason: None,
+                };
+            }
+        }
+        self.classify_path(path, is_dir)
+    }
+
     /// Classify a file or directory path into an attributed App / Category / SafetyTier.
     pub fn classify_path(&self, path: &Path, is_dir: bool) -> PathAttribution {
         let path_str = path.to_string_lossy();
