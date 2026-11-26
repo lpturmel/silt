@@ -312,7 +312,11 @@ pub fn scan_volume(
 
             // Attribute file to its owning App / Category / Cleanup candidate
             if phys > 0 {
-                let attr = attribution.classify_path(&path, false);
+                let attr = attribution.classify_path_on_volume(
+                    &path,
+                    false,
+                    Some(&config.mount_point),
+                );
                 let app_entry = app_map.entry(attr.app_id.clone()).or_insert_with(|| AppAcc {
                     display_name: attr.display_name.clone(),
                     category: attr.category.clone(),
@@ -397,7 +401,11 @@ pub fn scan_volume(
         if !keep {
             continue;
         }
-        let attr = attribution.classify_path(&dir_path, true);
+        let attr = attribution.classify_path_on_volume(
+            &dir_path,
+            true,
+            Some(&config.mount_point),
+        );
         let parent_path = if roots.iter().any(|r| r == &dir_path) {
             Some(config.mount_point.clone())
         } else {

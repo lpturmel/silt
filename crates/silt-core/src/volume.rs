@@ -474,8 +474,60 @@ pub fn inspect_volume(mount_point: &Path) -> Result<VolumeMetrics> {
     })
 }
 
-/// Discover the primary internal volume (`/`) and all mounted external volumes under `/Volumes`.
-/// Deduplicates symlink aliases to `/` (e.g. `/Volumes/Macintosh HD -> /`).
+/// Decide whether a `getfsstat` mount entry should be skipped as a virtual,
+/// `nobrowse`, or internal macOS system mount.
+pub fn should_skip_mount_entry(mount_point: &Path, fs_type: &str, flags: u32) -> bool {
+    if mount_point == Path::new("/") {
+        return true;
+    }
+    if (flags & (libc::MNT_DONTBROWSE as u32)) != 0 {
+        return true;
+    }
+    if matches!(
+        fs_type,
+        "devfs" | "autofs" | "fdesc" | "nullfs" | "lifs" | "mtmfs" | "vmhgfs"
+    ) {
+        return true;
+    }
+    let s = mount_point.to_string_lossy();
+    s.starts_with("/System/Volumes/")
+        || s.starts_with("/private/var/")
+        || s == "/dev"
+        || s.starts_with("/dev/")
+}
+
+/// Enumerate all user-visible mounted filesystem paths using macOS `getfsstat`,
+/// catching both `/Volumes/*` and custom mount points (e.g. `/Users/<me>/dev2`).
+fn enumerate_browsable_mount_points() -> Vec<PathBuf> {
+    let mut mounts = Vec::new();
+    unsafe {
+        let count = libc::getfsstat(std::ptr::null_mut(), 0, libc::MNT_NOWAIT);
+        if count <= 0 {
+            return mounts;
+        }
+        let mut buf: Vec<libc::statfs> = vec![std::mem::zeroed(); count as usize + 8];
+        let buf_bytes = (buf.len() * std::mem::size_of::<libc::statfs>()) as libc::c_int;
+        let actual = libc::getfsstat(buf.as_mut_ptr(), buf_bytes, libc::MNT_NOWAIT);
+        if actual <= 0 {
+            return mounts;
+        }
+        for stat in buf.into_iter().take(actual as usize) {
+            let mnt_cstr = std::ffi::CStr::from_ptr(stat.f_mntonname.as_ptr());
+            let fs_cstr = std::ffi::CStr::from_ptr(stat.f_fstypename.as_ptr());
+            let mnt_str = mnt_cstr.to_string_lossy();
+            let fs_str = fs_cstr.to_string_lossy();
+            let path = PathBuf::from(mnt_str.as_ref());
+            if !should_skip_mount_entry(&path, fs_str.as_ref(), stat.f_flags) {
+                mounts.push(path);
+            }
+        }
+    }
+    mounts
+}
+
+/// Discover the primary internal volume (`/`) and all browsable mounted volumes
+/// (both under `/Volumes/*` and custom mount points such as `/Users/<user>/dev2`).
+/// Deduplicates by stable Volume UUID and ignores symlink aliases back to `/`.
 pub fn discover_mounted_volumes() -> Result<Vec<VolumeMetrics>> {
     let mut volumes = Vec::new();
     let mut seen_uuids = std::collections::HashSet::new();
@@ -502,11 +554,11 @@ pub fn discover_mounted_volumes() -> Result<Vec<VolumeMetrics>> {
         volumes.push(root_vol);
     }
 
-    // External volumes mounted under /Volumes
+    // Collect candidate mount points from macOS `getfsstat` PLUS `/Volumes/*` fallback
+    let mut candidate_paths = enumerate_browsable_mount_points();
     if let Ok(entries) = std::fs::read_dir("/Volumes") {
         for entry in entries.flatten() {
             let path = entry.path();
-            // Skip symlinks pointing back to `/` (such as `/Volumes/Macintosh HD`)
             if let Ok(meta) = std::fs::symlink_metadata(&path)
                 && meta.file_type().is_symlink()
                 && let Ok(target) = std::fs::read_link(&path)
@@ -514,14 +566,20 @@ pub fn discover_mounted_volumes() -> Result<Vec<VolumeMetrics>> {
             {
                 continue;
             }
-            if !path.is_dir() {
-                continue;
+            if path.is_dir() && !candidate_paths.contains(&path) {
+                candidate_paths.push(path);
             }
-            if let Ok(vol) = inspect_volume(&path)
-                && seen_uuids.insert(vol.volume_uuid.clone())
-            {
-                volumes.push(vol);
-            }
+        }
+    }
+
+    for path in candidate_paths {
+        if !path.is_dir() {
+            continue;
+        }
+        if let Ok(vol) = inspect_volume(&path)
+            && seen_uuids.insert(vol.volume_uuid.clone())
+        {
+            volumes.push(vol);
         }
     }
 
@@ -570,5 +628,37 @@ mod tests {
             detect_auto_ignore_reason(dir2.path(), true, true, false, true),
             None
         );
+    }
+
+    #[test]
+    fn getfsstat_filter_keeps_custom_mounts_and_skips_nobrowse_system() {
+        // Custom external mount inside $HOME must be discovered
+        assert!(!should_skip_mount_entry(
+            Path::new("/Users/alice/dev2"),
+            "apfs",
+            0
+        ));
+        assert!(!should_skip_mount_entry(
+            Path::new("/Volumes/BackupSSD"),
+            "apfs",
+            0
+        ));
+        // System/nobrowse/virtual mounts skipped
+        assert!(should_skip_mount_entry(Path::new("/"), "apfs", 0));
+        assert!(should_skip_mount_entry(
+            Path::new("/System/Volumes/Data"),
+            "apfs",
+            libc::MNT_DONTBROWSE as u32
+        ));
+        assert!(should_skip_mount_entry(
+            Path::new("/dev"),
+            "devfs",
+            libc::MNT_DONTBROWSE as u32
+        ));
+        assert!(should_skip_mount_entry(
+            Path::new("/System/Volumes/Data/home"),
+            "autofs",
+            0
+        ));
     }
 }

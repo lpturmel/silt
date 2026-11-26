@@ -428,6 +428,7 @@ struct LaunchOptions {
     treemap_mode: TreemapColorMode,
     stage_safe_preview: bool,
     no_auto_scan: bool,
+    initial_volume: Option<String>,
     db_path: std::path::PathBuf,
 }
 
@@ -438,6 +439,7 @@ fn parse_launch_options() -> LaunchOptions {
         treemap_mode: TreemapColorMode::CreepHeatmap,
         stage_safe_preview: false,
         no_auto_scan: false,
+        initial_volume: None,
         db_path: silt_core::default_db_path(),
     };
 
@@ -477,6 +479,9 @@ fn parse_launch_options() -> LaunchOptions {
                     opts.db_path = std::path::PathBuf::from(v);
                 }
             }
+            "--volume" => {
+                opts.initial_volume = args.next();
+            }
             "--stage-safe-preview" => opts.stage_safe_preview = true,
             "--no-auto-scan" => opts.no_auto_scan = true,
             _ => {}
@@ -506,10 +511,24 @@ fn main() {
         let treemap_mode = launch.treemap_mode;
         let stage_safe_preview = launch.stage_safe_preview;
         let no_auto_scan = launch.no_auto_scan;
+        let initial_volume = launch.initial_volume.clone();
 
         cx.open_window(options, |_, cx| {
             let view = cx.new(|_| {
                 let mut state = SiltState::new(db_path.clone());
+                if let Some(ref query) = initial_volume
+                    && let Some(uuid) = state
+                        .drives
+                        .iter()
+                        .find(|d| {
+                            d.uuid == *query
+                                || d.name.eq_ignore_ascii_case(query)
+                                || d.mount_point.to_string_lossy() == query.as_str()
+                        })
+                        .map(|d| d.uuid.clone())
+                {
+                    state.select_volume(uuid);
+                }
                 state.active_tab = initial_tab;
                 state.theme_pref = theme_pref;
                 state.treemap_color_mode = treemap_mode;
