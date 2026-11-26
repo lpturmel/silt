@@ -3,6 +3,7 @@ members = [
     "crates/silt-core",
     "crates/silt-cli",
     "crates/silt-ui",
+    "crates/silt-daemon",
 ]
 resolver = "2"
 
@@ -20,6 +21,7 @@ clap = { version = "4", features = ["derive"] }
 gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "runtime_shaders"] }
 jwalk = "0.8"
 libc = "0.2"
+notify = "7"
 plist = "1.7"
 rayon = "1.10"
 rusqlite = { version = "0.32", features = ["bundled"] }
