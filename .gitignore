@@ -1,0 +1,10 @@
+/target
+Cargo.lock.bak
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
