@@ -59,17 +59,17 @@ pub fn render_apps(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>
         .h_full()
         .p_5()
         .gap_3()
-        // Header Controls
+        // Header & Sort/Filter Toolbar (stacked so pills never clip on narrower windows)
         .child(
             div()
                 .flex()
-                .flex_row()
-                .justify_between()
-                .items_center()
+                .flex_col()
+                .gap_2p5()
                 .child(
                     div()
                         .flex()
                         .flex_col()
+                        .gap_0p5()
                         .child(
                             div()
                                 .text_base()
@@ -88,6 +88,7 @@ pub fn render_apps(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>
                     div()
                         .flex()
                         .flex_row()
+                        .items_center()
                         .gap_2()
                         .child(sort_pill(
                             "Fastest Growing",

@@ -305,10 +305,65 @@ impl AttributionEngine {
             return lib_attr;
         }
 
-        // 4. Downloads with `com.apple.quarantine` xattr + stale installer detection
+        // 4. Downloads directory & files with `com.apple.quarantine` xattr + stale installer detection
         let downloads_dir = self.home_dir.join("Downloads");
-        if path.starts_with(&downloads_dir) && path != downloads_dir {
+        if path == downloads_dir {
+            return PathAttribution {
+                app_id: "folder:downloads".to_string(),
+                display_name: "Downloads".to_string(),
+                category: "Downloads".to_string(),
+                bucket: BucketKind::Downloads,
+                safety_tier: SafetyTier::ReviewRequired,
+                is_orphaned: false,
+                cleanup_root: None,
+                reason: None,
+            };
+        }
+        if path.starts_with(&downloads_dir) {
             return self.classify_download_path(path, is_dir);
+        }
+
+        // Exact top-level macOS roots so root treemap tiles get accurate categories
+        if path == Path::new("/Applications") || path == self.home_dir.join("Applications") {
+            return PathAttribution {
+                app_id: "root:applications".to_string(),
+                display_name: "Applications".to_string(),
+                category: "Applications".to_string(),
+                bucket: BucketKind::AppBundle,
+                safety_tier: SafetyTier::SystemProtected,
+                is_orphaned: false,
+                cleanup_root: None,
+                reason: None,
+            };
+        }
+        if path == Path::new("/Library") || path == self.home_dir.join("Library") {
+            return PathAttribution {
+                app_id: "root:library".to_string(),
+                display_name: "Library".to_string(),
+                category: "macOS System".to_string(),
+                bucket: BucketKind::ApplicationData,
+                safety_tier: SafetyTier::SystemProtected,
+                is_orphaned: false,
+                cleanup_root: None,
+                reason: None,
+            };
+        }
+        if path == self.home_dir {
+            let user_label = self
+                .home_dir
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "Home".to_string());
+            return PathAttribution {
+                app_id: format!("home:{}", slug(&user_label)),
+                display_name: user_label,
+                category: "User Files".to_string(),
+                bucket: BucketKind::Other,
+                safety_tier: SafetyTier::SystemProtected,
+                is_orphaned: false,
+                cleanup_root: None,
+                reason: None,
+            };
         }
 
         // 5. Fallback coarse user folders

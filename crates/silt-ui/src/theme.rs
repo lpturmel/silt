@@ -141,10 +141,16 @@ impl Theme {
                 if self.is_dark { rgb(0x5a4c28).into() } else { rgb(0xca8a04).into() }
             }
             "macOS System" => {
-                if self.is_dark { rgb(0x374151).into() } else { rgb(0x64748b).into() }
+                if self.is_dark { rgb(0x475569).into() } else { rgb(0x64748b).into() }
+            }
+            "User Files" => {
+                if self.is_dark { rgb(0x0f6b6e).into() } else { rgb(0x0d9488).into() }
+            }
+            "Documents" => {
+                if self.is_dark { rgb(0x1d4ed8).into() } else { rgb(0x2563eb).into() }
             }
             _ => {
-                if self.is_dark { rgb(0x2d3748).into() } else { rgb(0x475569).into() }
+                if self.is_dark { rgb(0x334155).into() } else { rgb(0x475569).into() }
             }
         }
     }

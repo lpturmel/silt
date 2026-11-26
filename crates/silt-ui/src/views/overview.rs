@@ -33,7 +33,11 @@ pub fn render_overview(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSt
             let rate_str = format_rate_per_day(rep.avg_bytes_per_day);
             let sub = if let Some(runway) = &rep.runway {
                 if let Some(d10) = runway.days_until_ten_percent {
-                    format!("{rate_str} · ~{d10:.0}d to <10% free")
+                    if d10 < 1.0 {
+                        format!("{rate_str} · already <10% free")
+                    } else {
+                        format!("{rate_str} · ~{d10:.0}d to <10% free")
+                    }
                 } else {
                     format!("{rate_str} · stable")
                 }

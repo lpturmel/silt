@@ -270,8 +270,11 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                             let delta = dir_deltas
                                 .and_then(|m| m.get(&d.path).copied())
                                 .unwrap_or(d.recent_7d_bytes as i64);
+                            let effective_cat = infer_display_category(&d);
                             let palette = match state.treemap_color_mode {
-                                TreemapColorMode::Category => theme.category_tile_palette(&d.category),
+                                TreemapColorMode::Category => {
+                                    theme.category_tile_palette(effective_cat)
+                                }
                                 TreemapColorMode::CreepHeatmap => {
                                     theme.creep_heatmap_tile_palette(delta, max_pos_delta)
                                 }
@@ -286,6 +289,7 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| d.path.display().to_string());
                             let show_label = rect.w >= 75.0 && rect.h >= 55.0;
+                            let show_compact_strip = !show_label && rect.w >= 140.0 && rect.h >= 22.0;
                             let show_sub = rect.w >= 105.0 && rect.h >= 95.0;
                             let click_path = d.path.clone();
 
@@ -303,7 +307,8 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                         .flex_col()
                                         .justify_between()
                                         .size_full()
-                                        .p_2()
+                                        .px_2()
+                                        .py(if show_compact_strip { px(1.0) } else { px(8.0) })
                                         .rounded(px(6.0))
                                         .bg(palette.bg)
                                         .border_1()
@@ -324,13 +329,33 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                                             .text_xs()
                                                             .font_weight(FontWeight::SEMIBOLD)
                                                             .text_color(palette.title)
-                                                            .child(name),
+                                                            .child(name.clone()),
                                                     )
                                                     .child(
                                                         div()
                                                             .text_xs()
                                                             .text_color(palette.subtitle)
                                                             .child(format_bytes(d.physical_bytes)),
+                                                    ),
+                                            )
+                                        } else if show_compact_strip {
+                                            Some(
+                                                div()
+                                                    .flex()
+                                                    .flex_row()
+                                                    .items_center()
+                                                    .gap_2()
+                                                    .min_w_0()
+                                                    .overflow_hidden()
+                                                    .child(
+                                                        div()
+                                                            .text_xs()
+                                                            .font_weight(FontWeight::SEMIBOLD)
+                                                            .text_color(palette.title)
+                                                            .child(format!(
+                                                                "{name} · {}",
+                                                                format_bytes(d.physical_bytes)
+                                                            )),
                                                     ),
                                             )
                                         } else {
@@ -483,6 +508,22 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                         }),
                 )
         }))
+}
+
+fn infer_display_category(d: &DirAggregate) -> &str {
+    if d.category != "Other" {
+        return &d.category;
+    }
+    let path_str = d.path.to_string_lossy();
+    if path_str == "/Applications" || path_str.ends_with("/Applications") {
+        "Applications"
+    } else if path_str == "/Library" || path_str.ends_with("/Library") {
+        "macOS System"
+    } else if path_str.starts_with("/Users/") {
+        "User Files"
+    } else {
+        "Other"
+    }
 }
 
 fn mode_pill(
