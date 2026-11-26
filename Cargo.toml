@@ -1,0 +1,29 @@
+[workspace]
+members = [
+    "crates/silt-core",
+    "crates/silt-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["lpturmel"]
+repository = "https://github.com/lpturmel/silt"
+
+[workspace.dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+jwalk = "0.8"
+libc = "0.2"
+plist = "1.7"
+rayon = "1.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+toml = "0.8"
+trash = "5"
+xattr = "1.3"
