@@ -10,7 +10,7 @@ use gpui::{
 };
 use silt_core::attribution::AppRollup;
 use silt_core::cleanup::CleanupTarget;
-use silt_core::format::{format_bytes, format_signed_bytes};
+use silt_core::format::{compact_display_path, format_bytes, format_signed_bytes};
 use std::collections::HashMap;
 
 pub fn render_apps(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>) -> impl IntoElement {
@@ -59,17 +59,17 @@ pub fn render_apps(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>
         .h_full()
         .p_5()
         .gap_3()
-        // Header Controls
+        // Header & Sort/Filter Toolbar (stacked so pills never clip on narrower windows)
         .child(
             div()
                 .flex()
-                .flex_row()
-                .justify_between()
-                .items_center()
+                .flex_col()
+                .gap_2p5()
                 .child(
                     div()
                         .flex()
                         .flex_col()
+                        .gap_0p5()
                         .child(
                             div()
                                 .text_base()
@@ -88,6 +88,7 @@ pub fn render_apps(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>
                     div()
                         .flex()
                         .flex_row()
+                        .items_center()
                         .gap_2()
                         .child(sort_pill(
                             "Fastest Growing",
@@ -255,6 +256,9 @@ fn render_app_row(
                 }))
                 .child(
                     div()
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
                         .flex()
                         .flex_row()
                         .items_center()
@@ -313,6 +317,7 @@ fn render_app_row(
                     div()
                         .flex()
                         .flex_row()
+                        .flex_shrink_0()
                         .items_center()
                         .gap_5()
                         .child(metric_col(
@@ -371,12 +376,16 @@ fn render_app_row(
                         .flex_row()
                         .items_center()
                         .justify_between()
+                        .gap_3()
                         .px_2p5()
                         .py_1p5()
                         .rounded(px(6.0))
                         .bg(theme.bg_elevated)
                         .child(
                             div()
+                                .flex_1()
+                                .min_w_0()
+                                .overflow_hidden()
                                 .flex()
                                 .flex_col()
                                 .gap_0p5()
@@ -395,13 +404,14 @@ fn render_app_row(
                                     div()
                                         .text_xs()
                                         .text_color(theme.text_muted)
-                                        .child(loc.path.display().to_string()),
+                                        .child(compact_display_path(&loc.path, 72)),
                                 ),
                         )
                         .child(
                             div()
                                 .flex()
                                 .flex_row()
+                                .flex_shrink_0()
                                 .items_center()
                                 .gap_2()
                                 .child(

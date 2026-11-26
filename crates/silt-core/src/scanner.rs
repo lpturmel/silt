@@ -215,10 +215,20 @@ pub fn scan_volume(
             .skip_hidden(false)
             .follow_links(false)
             .process_read_dir(move |_depth, _path, _state, children| {
-                // Prune virtual / firmlink / cross-device directories early
+                // Prune virtual, firmlink, and cross-device mount directories BEFORE descending
+                // so mounted APFS sub-volumes (e.g. ~/dev2 on a separate disk) are never walked.
                 for child in children.iter_mut().flatten() {
+                    if !child.file_type.is_dir() {
+                        continue;
+                    }
                     let p = child.path();
                     if should_prune_dir(&p) {
+                        child.read_children_path = None;
+                        continue;
+                    }
+                    if let Ok(m) = std::fs::symlink_metadata(&p)
+                        && m.dev() != root_dev
+                    {
                         child.read_children_path = None;
                     }
                 }

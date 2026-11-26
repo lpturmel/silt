@@ -33,7 +33,11 @@ pub fn render_overview(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSt
             let rate_str = format_rate_per_day(rep.avg_bytes_per_day);
             let sub = if let Some(runway) = &rep.runway {
                 if let Some(d10) = runway.days_until_ten_percent {
-                    format!("{rate_str} · ~{d10:.0}d to <10% free")
+                    if d10 < 1.0 {
+                        format!("{rate_str} · already <10% free")
+                    } else {
+                        format!("{rate_str} · ~{d10:.0}d to <10% free")
+                    }
                 } else {
                     format!("{rate_str} · stable")
                 }
@@ -374,9 +378,11 @@ pub fn render_overview(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSt
                                 }))
                                 .child(
                                     div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .overflow_hidden()
                                         .flex()
                                         .flex_col()
-                                        .w(px(230.0))
                                         .child(
                                             div()
                                                 .text_sm()
@@ -395,16 +401,22 @@ pub fn render_overview(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSt
                                                 }),
                                         ),
                                 )
-                                .child(render_sparkline(
-                                    item.sparkline.clone(),
-                                    delta_color,
-                                    88.0,
-                                    24.0,
-                                ))
+                                .child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .px_2()
+                                        .child(render_sparkline(
+                                            item.sparkline.clone(),
+                                            delta_color,
+                                            88.0,
+                                            24.0,
+                                        )),
+                                )
                                 .child(
                                     div()
                                         .flex()
                                         .flex_row()
+                                        .flex_shrink_0()
                                         .items_center()
                                         .gap_5()
                                         .child(

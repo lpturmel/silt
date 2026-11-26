@@ -10,7 +10,7 @@ use gpui::{
 };
 use silt_core::attribution::{CleanupCandidate, SafetyTier};
 use silt_core::cleanup::CleanupTarget;
-use silt_core::format::format_bytes;
+use silt_core::format::{compact_display_path, format_bytes};
 
 pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>) -> impl IntoElement {
     let total_reclaimable: u64 = state.cleanup_candidates.iter().map(|c| c.bytes).sum();
@@ -112,13 +112,14 @@ pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
         )
         // Safety Tier Cards
         .children(groups.into_iter().map(|(title, desc, tier, accent)| {
-            let items: Vec<&CleanupCandidate> = state
+            let all_tier: Vec<&CleanupCandidate> = state
                 .cleanup_candidates
                 .iter()
                 .filter(|c| c.safety_tier == tier)
-                .take(25)
                 .collect();
-            let group_bytes: u64 = items.iter().map(|c| c.bytes).sum();
+            let tier_count = all_tier.len();
+            let group_bytes: u64 = all_tier.iter().map(|c| c.bytes).sum();
+            let items: Vec<&CleanupCandidate> = all_tier.into_iter().take(25).collect();
 
             div()
                 .flex()
@@ -155,10 +156,30 @@ pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                         )
                         .child(
                             div()
-                                .text_sm()
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(accent)
-                                .child(format_bytes(group_bytes)),
+                                .flex()
+                                .flex_col()
+                                .items_end()
+                                .flex_shrink_0()
+                                .child(
+                                    div()
+                                        .text_sm()
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(accent)
+                                        .child(format_bytes(group_bytes)),
+                                )
+                                .children(if tier_count > items.len() {
+                                    Some(
+                                        div()
+                                            .text_xs()
+                                            .text_color(theme.text_muted)
+                                            .child(format!(
+                                                "showing {} of {tier_count}",
+                                                items.len()
+                                            )),
+                                    )
+                                } else {
+                                    None
+                                }),
                         ),
                 )
                 .child(if items.is_empty() {
@@ -190,12 +211,16 @@ pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                 .flex_row()
                                 .items_center()
                                 .justify_between()
+                                .gap_3()
                                 .px_3()
                                 .py_2()
                                 .rounded(px(8.0))
                                 .bg(theme.bg_elevated)
                                 .child(
                                     div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .overflow_hidden()
                                         .flex()
                                         .flex_col()
                                         .gap_0p5()
@@ -213,13 +238,14 @@ pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                             div()
                                                 .text_xs()
                                                 .text_color(theme.text_muted)
-                                                .child(cand.path.display().to_string()),
+                                                .child(compact_display_path(&cand.path, 72)),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .flex()
                                         .flex_row()
+                                        .flex_shrink_0()
                                         .items_center()
                                         .gap_2()
                                         .child(
