@@ -2,6 +2,7 @@
 members = [
     "crates/silt-core",
     "crates/silt-cli",
+    "crates/silt-ui",
 ]
 resolver = "2"
 
@@ -16,6 +17,7 @@ repository = "https://github.com/lpturmel/silt"
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
+gpui = { version = "0.2.2", default-features = false, features = ["font-kit", "runtime_shaders"] }
 jwalk = "0.8"
 libc = "0.2"
 plist = "1.7"
