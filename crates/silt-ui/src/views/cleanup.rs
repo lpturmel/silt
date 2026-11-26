@@ -10,7 +10,7 @@ use gpui::{
 };
 use silt_core::attribution::{CleanupCandidate, SafetyTier};
 use silt_core::cleanup::CleanupTarget;
-use silt_core::format::format_bytes;
+use silt_core::format::{compact_display_path, format_bytes};
 
 pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>) -> impl IntoElement {
     let total_reclaimable: u64 = state.cleanup_candidates.iter().map(|c| c.bytes).sum();
@@ -190,12 +190,16 @@ pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                 .flex_row()
                                 .items_center()
                                 .justify_between()
+                                .gap_3()
                                 .px_3()
                                 .py_2()
                                 .rounded(px(8.0))
                                 .bg(theme.bg_elevated)
                                 .child(
                                     div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .overflow_hidden()
                                         .flex()
                                         .flex_col()
                                         .gap_0p5()
@@ -213,13 +217,14 @@ pub fn render_cleanup(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                             div()
                                                 .text_xs()
                                                 .text_color(theme.text_muted)
-                                                .child(cand.path.display().to_string()),
+                                                .child(compact_display_path(&cand.path, 72)),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .flex()
                                         .flex_row()
+                                        .flex_shrink_0()
                                         .items_center()
                                         .gap_2()
                                         .child(

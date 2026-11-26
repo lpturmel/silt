@@ -5,8 +5,8 @@ mod theme;
 mod views;
 mod widgets;
 
-use crate::state::{ActiveTab, SiltState};
-use crate::theme::Theme;
+use crate::state::{ActiveTab, SiltState, TreemapColorMode};
+use crate::theme::{Theme, ThemePreference};
 use gpui::{
     App, AppContext, Application, Bounds, Context, FontWeight, InteractiveElement, IntoElement,
     ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, TitlebarOptions,
@@ -206,7 +206,7 @@ fn render_top_bar(state: &SiltState, theme: &Theme, cx: &mut Context<SiltState>)
                         .text_color(if state.is_scanning {
                             theme.text_muted
                         } else {
-                            gpui::rgb(0x0b1220).into()
+                            theme.text_on_accent
                         })
                         .cursor_pointer()
                         .on_click(cx.listener(|this, _, _, cx| {
@@ -308,7 +308,7 @@ fn render_staging_cart_bar(
                         .bg(theme.good_green)
                         .text_xs()
                         .font_weight(FontWeight::BOLD)
-                        .text_color(gpui::rgb(0x052e16))
+                        .text_color(theme.text_on_good)
                         .cursor_pointer()
                         .on_click(cx.listener(move |this, _, _, cx| {
                             if has_snapshot_in_cart {
@@ -422,8 +422,71 @@ fn render_confirm_modal(
         )
 }
 
+struct LaunchOptions {
+    initial_tab: ActiveTab,
+    theme_pref: ThemePreference,
+    treemap_mode: TreemapColorMode,
+    stage_safe_preview: bool,
+    no_auto_scan: bool,
+    db_path: std::path::PathBuf,
+}
+
+fn parse_launch_options() -> LaunchOptions {
+    let mut opts = LaunchOptions {
+        initial_tab: ActiveTab::Overview,
+        theme_pref: ThemePreference::System,
+        treemap_mode: TreemapColorMode::CreepHeatmap,
+        stage_safe_preview: false,
+        no_auto_scan: false,
+        db_path: silt_core::default_db_path(),
+    };
+
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--tab" => {
+                if let Some(v) = args.next() {
+                    opts.initial_tab = match v.to_ascii_lowercase().as_str() {
+                        "apps" => ActiveTab::Apps,
+                        "spacemap" | "treemap" | "map" => ActiveTab::SpaceMap,
+                        "cleanup" => ActiveTab::Cleanup,
+                        "settings" => ActiveTab::Settings,
+                        _ => ActiveTab::Overview,
+                    };
+                }
+            }
+            "--theme" => {
+                if let Some(v) = args.next() {
+                    opts.theme_pref = match v.to_ascii_lowercase().as_str() {
+                        "dark" => ThemePreference::Dark,
+                        "light" => ThemePreference::Light,
+                        _ => ThemePreference::System,
+                    };
+                }
+            }
+            "--treemap-mode" => {
+                if let Some(v) = args.next() {
+                    opts.treemap_mode = match v.to_ascii_lowercase().as_str() {
+                        "category" => TreemapColorMode::Category,
+                        _ => TreemapColorMode::CreepHeatmap,
+                    };
+                }
+            }
+            "--db" => {
+                if let Some(v) = args.next() {
+                    opts.db_path = std::path::PathBuf::from(v);
+                }
+            }
+            "--stage-safe-preview" => opts.stage_safe_preview = true,
+            "--no-auto-scan" => opts.no_auto_scan = true,
+            _ => {}
+        }
+    }
+    opts
+}
+
 fn main() {
-    let db_path = silt_core::default_db_path();
+    let launch = parse_launch_options();
 
     Application::new().run(move |cx: &mut App| {
         let bounds = Bounds::centered(None, size(px(1240.0), px(820.0)), cx);
@@ -437,11 +500,28 @@ fn main() {
             ..Default::default()
         };
 
+        let db_path = launch.db_path.clone();
+        let initial_tab = launch.initial_tab;
+        let theme_pref = launch.theme_pref;
+        let treemap_mode = launch.treemap_mode;
+        let stage_safe_preview = launch.stage_safe_preview;
+        let no_auto_scan = launch.no_auto_scan;
+
         cx.open_window(options, |_, cx| {
-            let view = cx.new(|_| SiltState::new(db_path.clone()));
+            let view = cx.new(|_| {
+                let mut state = SiltState::new(db_path.clone());
+                state.active_tab = initial_tab;
+                state.theme_pref = theme_pref;
+                state.treemap_color_mode = treemap_mode;
+                if stage_safe_preview {
+                    state.stage_all_safe_caches();
+                }
+                state
+            });
             // Automatically trigger an initial background scan if no snapshot exists yet (Day 1)
             view.update(cx, |state, cx| {
-                if state.latest_snapshot.is_none()
+                if !no_auto_scan
+                    && state.latest_snapshot.is_none()
                     && state.selected_drive().is_some_and(|d| d.is_online)
                 {
                     state.start_scan(cx);

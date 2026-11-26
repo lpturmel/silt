@@ -374,9 +374,11 @@ pub fn render_overview(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSt
                                 }))
                                 .child(
                                     div()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .overflow_hidden()
                                         .flex()
                                         .flex_col()
-                                        .w(px(230.0))
                                         .child(
                                             div()
                                                 .text_sm()
@@ -395,16 +397,22 @@ pub fn render_overview(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSt
                                                 }),
                                         ),
                                 )
-                                .child(render_sparkline(
-                                    item.sparkline.clone(),
-                                    delta_color,
-                                    88.0,
-                                    24.0,
-                                ))
+                                .child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .px_2()
+                                        .child(render_sparkline(
+                                            item.sparkline.clone(),
+                                            delta_color,
+                                            88.0,
+                                            24.0,
+                                        )),
+                                )
                                 .child(
                                     div()
                                         .flex()
                                         .flex_row()
+                                        .flex_shrink_0()
                                         .items_center()
                                         .gap_5()
                                         .child(

@@ -10,7 +10,7 @@ use gpui::{
 };
 use silt_core::attribution::SafetyTier;
 use silt_core::cleanup::{CleanupTarget, is_protected_path};
-use silt_core::format::{format_bytes, format_signed_bytes};
+use silt_core::format::{compact_display_path, format_bytes, format_signed_bytes};
 use silt_core::scanner::DirAggregate;
 use std::path::PathBuf;
 
@@ -270,10 +270,10 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                             let delta = dir_deltas
                                 .and_then(|m| m.get(&d.path).copied())
                                 .unwrap_or(d.recent_7d_bytes as i64);
-                            let fill_color = match state.treemap_color_mode {
-                                TreemapColorMode::Category => theme.category_color(&d.category),
+                            let palette = match state.treemap_color_mode {
+                                TreemapColorMode::Category => theme.category_tile_palette(&d.category),
                                 TreemapColorMode::CreepHeatmap => {
-                                    theme.creep_heatmap_color(delta, max_pos_delta)
+                                    theme.creep_heatmap_tile_palette(delta, max_pos_delta)
                                 }
                             };
                             let has_children = state
@@ -305,7 +305,7 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                         .size_full()
                                         .p_2()
                                         .rounded(px(6.0))
-                                        .bg(fill_color)
+                                        .bg(palette.bg)
                                         .border_1()
                                         .border_color(theme.bg_window.opacity(0.45))
                                         .overflow_hidden()
@@ -317,17 +317,19 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                                     .flex()
                                                     .flex_col()
                                                     .gap_0p5()
+                                                    .min_w_0()
+                                                    .overflow_hidden()
                                                     .child(
                                                         div()
                                                             .text_xs()
                                                             .font_weight(FontWeight::SEMIBOLD)
-                                                            .text_color(gpui::rgb(0xf8fafc))
+                                                            .text_color(palette.title)
                                                             .child(name),
                                                     )
                                                     .child(
                                                         div()
                                                             .text_xs()
-                                                            .text_color(gpui::rgba(0xf8fafccc))
+                                                            .text_color(palette.subtitle)
                                                             .child(format_bytes(d.physical_bytes)),
                                                     ),
                                             )
@@ -339,7 +341,7 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                                 div()
                                                     .text_xs()
                                                     .font_weight(FontWeight::MEDIUM)
-                                                    .text_color(gpui::rgba(0xfef08aee))
+                                                    .text_color(palette.delta)
                                                     .child(format_signed_bytes(delta)),
                                             )
                                         } else {
@@ -380,6 +382,7 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                 .flex_row()
                 .items_center()
                 .justify_between()
+                .gap_3()
                 .px_4()
                 .py_2p5()
                 .rounded(px(10.0))
@@ -388,6 +391,9 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                 .border_color(theme.border)
                 .child(
                     div()
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
                         .flex()
                         .flex_col()
                         .child(
@@ -397,7 +403,7 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                                 .text_color(theme.text_primary)
                                 .child(format!(
                                     "{} · {} ({} delta · {} files)",
-                                    sel.path.display(),
+                                    compact_display_path(&sel.path, 58),
                                     format_bytes(sel.physical_bytes),
                                     format_signed_bytes(delta),
                                     sel.file_count
@@ -414,6 +420,7 @@ pub fn render_treemap(state: &SiltState, theme: &Theme, cx: &mut Context<SiltSta
                     div()
                         .flex()
                         .flex_row()
+                        .flex_shrink_0()
                         .gap_2()
                         .child(
                             div()

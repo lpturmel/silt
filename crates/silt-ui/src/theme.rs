@@ -10,6 +10,14 @@ pub enum ThemePreference {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct TilePalette {
+    pub bg: Hsla,
+    pub title: Hsla,
+    pub subtitle: Hsla,
+    pub delta: Hsla,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Theme {
     pub is_dark: bool,
     pub bg_window: Hsla,
@@ -22,6 +30,8 @@ pub struct Theme {
     pub text_primary: Hsla,
     pub text_secondary: Hsla,
     pub text_muted: Hsla,
+    pub text_on_accent: Hsla,
+    pub text_on_good: Hsla,
     pub accent: Hsla,
     pub accent_soft: Hsla,
     pub used_color: Hsla,
@@ -60,6 +70,8 @@ impl Theme {
             text_primary: rgb(0xf1f5f9).into(),
             text_secondary: rgb(0x94a3b8).into(),
             text_muted: rgb(0x64748b).into(),
+            text_on_accent: rgb(0x0b1220).into(),
+            text_on_good: rgb(0x052e16).into(),
             accent: rgb(0x38bdf8).into(),
             accent_soft: rgba(0x38bdf826).into(),
             used_color: rgb(0x6366f1).into(),
@@ -86,6 +98,8 @@ impl Theme {
             text_primary: rgb(0x0f172a).into(),
             text_secondary: rgb(0x475569).into(),
             text_muted: rgb(0x64748b).into(),
+            text_on_accent: rgb(0xffffff).into(),
+            text_on_good: rgb(0xffffff).into(),
             accent: rgb(0x0284c7).into(),
             accent_soft: rgba(0x0284c71f).into(),
             used_color: rgb(0x4f46e5).into(),
@@ -132,6 +146,45 @@ impl Theme {
             _ => {
                 if self.is_dark { rgb(0x2d3748).into() } else { rgb(0x475569).into() }
             }
+        }
+    }
+
+    /// Return high-contrast tile fill + label palette for Category treemap mode.
+    pub fn category_tile_palette(&self, category: &str) -> TilePalette {
+        let bg = self.category_color(category);
+        TilePalette {
+            bg,
+            title: rgb(0xf8fafc).into(),
+            subtitle: rgba(0xf8fafcd9).into(),
+            delta: rgba(0xfef08af0).into(),
+        }
+    }
+
+    /// Return high-contrast tile fill + label palette for Creep Heatmap mode in both Dark & Light themes.
+    pub fn creep_heatmap_tile_palette(&self, delta_bytes: i64, max_positive_delta: i64) -> TilePalette {
+        let bg = self.creep_heatmap_color(delta_bytes, max_positive_delta);
+        if !self.is_dark && delta_bytes >= 0 {
+            let ratio = if delta_bytes == 0 || max_positive_delta <= 0 {
+                0.0
+            } else {
+                ((delta_bytes as f64 + 1.0).ln() / (max_positive_delta as f64 + 1.0).ln())
+                    .clamp(0.0, 1.0)
+            };
+            // Light slate / amber tiles need dark ink for strong WCAG contrast
+            if ratio < 0.65 {
+                return TilePalette {
+                    bg,
+                    title: rgb(0x0f172a).into(),
+                    subtitle: rgb(0x1e293b).into(),
+                    delta: rgb(0x7c2d12).into(),
+                };
+            }
+        }
+        TilePalette {
+            bg,
+            title: rgb(0xf8fafc).into(),
+            subtitle: rgba(0xf8fafcd9).into(),
+            delta: rgba(0xfef08af0).into(),
         }
     }
 
